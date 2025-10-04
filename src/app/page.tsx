@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 interface AIResponse {
   urgency: string;
@@ -19,10 +19,15 @@ export default function Home() {
   const [response, setResponse] = useState<AIResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
 
-  // Submit symptom to Gemini API
-  const handleSubmit = async () => {
-    if (!prompt.trim()) return;
+  /** Submit prompt (from textarea or STT) to Gemini API */
+  const handleSubmit = async (text?: string) => {
+    const actualPrompt = (text ?? prompt).trim();
+    if (!actualPrompt) return;
 
     setLoading(true);
     setResponse(null);
@@ -32,13 +37,14 @@ export default function Home() {
       const res = await fetch("/api/symptom", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt: actualPrompt }),
       });
 
       const data: APIResponse = await res.json();
 
       if (data.status === "success") {
         setResponse(data.output);
+        setPrompt(actualPrompt);
       } else {
         setError(data.message || "No AI response available.");
       }
@@ -50,23 +56,96 @@ export default function Home() {
     setLoading(false);
   };
 
-  // Save session to localStorage
-  const saveSession = () => {
-    if (!prompt || !response) return;
-    const existing = JSON.parse(localStorage.getItem("symptomHistory") || "[]");
-    existing.push({ prompt, response });
-    localStorage.setItem("symptomHistory", JSON.stringify(existing));
-    alert("Session saved!");
+  /** Start recording */
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
+        await sendAudioToSTT(audioBlob);
+        
+        // Stop all tracks to release microphone
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setRecording(true);
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      setError("Microphone access denied. Please allow microphone access.");
+    }
   };
 
-  // Placeholder for Detailed Feedback (Auth0 integration later)
-  const getDetailedFeedback = () => {
-    alert("Detailed feedback clicked (Auth0 login to be integrated).");
+  /** Stop recording */
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && recording) {
+      mediaRecorderRef.current.stop();
+      setRecording(false);
+    }
   };
 
-  // Placeholder for voice input
+  /** Send audio to ElevenLabs STT */
+  const sendAudioToSTT = async (audioBlob: Blob) => {
+    setLoading(true);
+    
+    try {
+      // Convert blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      
+      reader.onloadend = async () => {
+        const base64Audio = (reader.result as string).split(",")[1];
+
+        const sttRes = await fetch("/api/voice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            audio: base64Audio,
+            mimeType: audioBlob.type 
+          }),
+        });
+
+        const sttData = await sttRes.json();
+
+        if (sttData.status === "success" && sttData.text) {
+          setPrompt(sttData.text); // Display transcribed text in textarea
+          await handleSubmit(sttData.text); // Auto-submit to Gemini
+        } else {
+          setError("Voice recognition failed: " + (sttData.message || "Unknown error"));
+          setLoading(false);
+        }
+      };
+
+      reader.onerror = () => {
+        setError("Failed to read audio file.");
+        setLoading(false);
+      };
+    } catch (err) {
+      console.error(err);
+      setError("Failed to process voice input.");
+      setLoading(false);
+    }
+  };
+
+  /** Toggle recording */
   const handleVoiceInput = () => {
-    alert("Voice input clicked (ElevenLabs integration coming).");
+    if (recording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
   };
 
   return (
@@ -76,7 +155,6 @@ export default function Home() {
           AI Symptom Checker 🚑
         </h1>
 
-        {/* Symptom Input */}
         <textarea
           className="w-full p-3 mb-4 rounded bg-gray-800 text-white placeholder-gray-400 resize-none"
           rows={5}
@@ -85,53 +163,43 @@ export default function Home() {
           onChange={(e) => setPrompt(e.target.value)}
         />
 
-        {/* Buttons */}
         <div className="flex gap-2 mb-4">
           <button
-            onClick={handleSubmit}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={loading}
+            onClick={() => handleSubmit()}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading || recording}
           >
             {loading ? "Checking..." : "Check Symptoms"}
           </button>
 
           <button
             onClick={handleVoiceInput}
-            className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded transition-colors duration-200"
+            className={`flex-1 ${
+              recording 
+                ? "bg-red-600 hover:bg-red-700 animate-pulse" 
+                : "bg-green-600 hover:bg-green-700"
+            } text-white font-semibold py-2 px-4 rounded transition-colors duration-200 disabled:opacity-50`}
+            disabled={loading && !recording}
           >
-            🎤 Voice Input
+            {recording ? "⏹️ Stop Recording" : "🎤 Voice Input"}
           </button>
         </div>
 
-        {/* AI Response Chat Bubble */}
         {response && (
-          <div className="mt-4 space-y-2">
-            <div className="p-4 rounded-xl bg-gray-800 border border-gray-700">
-              <p className="text-sm text-gray-400 mb-2">AI Response</p>
-              <p><strong>Urgency:</strong> {response.urgency}</p>
-              <p><strong>Suggestion:</strong> {response.suggestion}</p>
-              <p><strong>Next Steps:</strong> {response.next_steps}</p>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={getDetailedFeedback}
-                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded"
-              >
-                Get Detailed Feedback
-              </button>
-
-              <button
-                onClick={saveSession}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded"
-              >
-                Save this Session
-              </button>
-            </div>
+          <div className="mt-4 p-4 bg-gray-800 rounded border border-gray-700">
+            <h2 className="font-semibold mb-2 text-lg">AI Suggestion:</h2>
+            <p className="mb-2">
+              <strong>Urgency:</strong> {response.urgency}
+            </p>
+            <p className="mb-2">
+              <strong>Suggestion:</strong> {response.suggestion}
+            </p>
+            <p>
+              <strong>Next Steps:</strong> {response.next_steps}
+            </p>
           </div>
         )}
 
-        {/* Error Message */}
         {error && (
           <div className="mt-4 p-4 bg-red-800 rounded border border-red-700 text-red-200">
             <p>{error}</p>
