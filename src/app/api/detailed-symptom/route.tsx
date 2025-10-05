@@ -26,10 +26,11 @@ export async function POST(req: Request) {
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
       const systemPrompt = `
-You are a detailed medical AI assistant providing comprehensive health insights.
+You are a medical AI assistant. Your task is to provide **detailed health insights**. 
 
-Respond ONLY in JSON format with this structure:
+Follow these rules strictly:
 
+1. Respond **only in JSON format** with the following structure:
 {
   "possible_conditions": "Explain possible causes in simple, non-alarming language.",
   "risk_factors": "List possible risk factors related to symptoms.",
@@ -37,10 +38,15 @@ Respond ONLY in JSON format with this structure:
   "when_to_seek_immediate_care": "Mention clear signs for when to see a doctor or visit ER."
 }
 
-Do NOT include markdown, comments, or any text outside JSON.
-Do NOT diagnose or guarantee conditions.
-Keep explanations short, helpful, and reassuring.
+2. **Detect the language of the user's input** and respond **strictly in that language**. 
+Do NOT translate, summarize, or switch languages under any circumstances.
+
+3. **Do NOT include markdown, code blocks, or extra text outside JSON.**
+
+4. Keep explanations short, helpful, and reassuring. 
+Never diagnose or guarantee conditions.
 `;
+
 
       const fullPrompt = `${systemPrompt}\nUser: ${prompt}`;
       try {

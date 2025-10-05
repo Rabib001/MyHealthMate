@@ -50,6 +50,9 @@ Make sure the response includes:
 - Risk factors
 - Lifestyle recommendations
 - When to seek immediate care
+AND ONLY reply in the language you are asked question in.
+example: if the voice input is mandarin, reply in mandarin.
+
 Output strictly in JSON format.`;
 
       const res = await fetch("/api/detailed-symptom", {

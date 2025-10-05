@@ -185,7 +185,7 @@ export default function Home() {
           <div className="relative">
             <div className="w-24 h-24 bg-gradient-to-br from-green-100 to-blue-100 rounded-2xl shadow-md flex items-center justify-center transform rotate-12 transition-transform duration-700 hover:rotate-0 border border-white/60">
               <div className="w-16 h-16 bg-white/80 rounded-xl flex items-center justify-center shadow-inner">
-                <span className="text-3xl">💚</span>
+                <span className="text-6xl">🧑‍⚕️</span>
               </div>
             </div>
             <div className="absolute inset-0 bg-gradient-to-br from-green-200 to-blue-200 rounded-2xl opacity-30 blur-md"></div>
@@ -194,7 +194,7 @@ export default function Home() {
 
         <div className="text-center mb-8 pt-12">
           <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-green-700 to-blue-600 bg-clip-text text-transparent">
-            Wellness Check
+            Check_MateAI
           </h1>
           <p className="text-gray-600 text-lg max-w-md mx-auto">Share your symptoms for personalized AI health guidance</p>
         </div>
