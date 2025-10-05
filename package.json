@@ -12,6 +12,7 @@
     "@auth0/nextjs-auth0": "^4.10.0",
     "@elevenlabs/elevenlabs-js": "^2.17.0",
     "@google/generative-ai": "^0.24.1",
+    "framer-motion": "^12.23.22",
     "mongodb": "^6.20.0",
     "next": "15.5.4",
     "react": "19.1.0",

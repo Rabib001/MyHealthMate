@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
-/* --- DARK THEME VARIABLES --- */
+/* --- SOFT LIGHT WELLNESS THEME VARIABLES --- */
 :root {
-  --background: #0a0a0a;      /* Very dark background */
-  --foreground: #ededed;      /* Light text for contrast */
-  --font-sans: Arial, Helvetica, sans-serif;
-  --font-mono: monospace;
+  --background: #fefefe;
+  --foreground: #4b5563;
+  --font-sans: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
 }
 
 @theme inline {
@@ -21,6 +21,85 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   transition: background-color 0.3s ease, color 0.3s ease;
+  line-height: 1.6;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-15px) rotate(3deg); }
+}
+
+@keyframes glow {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.4; }
+}
+
+.float-animation {
+  animation: float 8s ease-in-out infinite;
+}
+
+.glow-animation {
+  animation: glow 6s ease-in-out infinite;
+}
+
+/* Glass morphism effect */
+.glass {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* Focus states for accessibility */
+button:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #34d399;
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+
+/* Loading pulse animation */
+.pulse-soft {
+  animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Text selection */
+::selection {
+  background-color: #d1fae5;
+  color: #065f46;
 }
 
 /* Optional: center main content nicely */
@@ -30,4 +109,9 @@ main {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+/* Smooth transitions for all interactive elements */
+button, textarea, div {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }

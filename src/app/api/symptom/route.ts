@@ -1,30 +1,30 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import clientPromise from "../../../../lib/mongodb";
+import clientPromise from "../../../../lib/mongodb"; // adjust path if needed
 
 export async function POST(req: Request) {
   try {
     const { prompt } = await req.json();
-
-    if (!process.env.GEMINI_API_KEY) {
-      console.error("Gemini API key missing!");
+    if (!prompt) {
       return new Response(
-        JSON.stringify({
-          status: "error",
-          message: "API key not configured",
-          output: {
-            urgency: "medium",
-            suggestion: "Rest, drink fluids, monitor symptoms.",
-            next_steps: "See a doctor if symptoms worsen."
-          }
-        }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        JSON.stringify({ status: "error", message: "No prompt provided" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    // Default AI response in case API key is missing or AI fails
+    const defaultResponse = {
+      urgency: "medium",
+      suggestion: "Rest, drink fluids, monitor symptoms.",
+      next_steps: "See a doctor if symptoms worsen."
+    };
 
-    const systemPrompt = `
+    let aiJSON = defaultResponse;
+
+    if (process.env.GEMINI_API_KEY) {
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+      const systemPrompt = `
 You are a helpful health assistant.
 Respond ONLY in JSON format with this structure:
 
@@ -38,60 +38,45 @@ Do NOT include markdown, explanations, or any text outside JSON.
 Do NOT diagnose.
 `;
 
-    const fullPrompt = `${systemPrompt}\nUser: ${prompt}`;
-
-    const result = await model.generateContent(fullPrompt);
-    let responseText = result.response?.text() || "";
-
-    console.log("Raw Gemini response:", responseText);
-
-    responseText = responseText.replace(/```json|```/g, "").trim();
-
-    let aiJSON;
-    try {
-      aiJSON = JSON.parse(responseText);
-    } catch {
-      aiJSON = {
-        urgency: "medium",
-        suggestion: "Rest, drink fluids, monitor symptoms.",
-        next_steps: "See a doctor if symptoms worsen."
-      };
+      const fullPrompt = `${systemPrompt}\nUser: ${prompt}`;
+      try {
+        const result = await model.generateContent(fullPrompt);
+        let responseText = result.response?.text() || "";
+        responseText = responseText.replace(/```json|```/g, "").trim();
+        aiJSON = JSON.parse(responseText);
+      } catch {
+        // fallback: use defaultResponse
+        aiJSON = defaultResponse;
+      }
     }
 
-    // Save to MongoDB
+    // --- Save to MongoDB ---
     try {
       const client = await clientPromise;
-      const db = client.db("symptom-checker");
-      const collection = db.collection("symptoms");
-
+      const db = client.db(); // uses default DB from URI
+      const collection = db.collection("symptoms"); // create "symptoms" collection
       await collection.insertOne({
-        symptom: prompt,
+        prompt,
         response: aiJSON,
-        timestamp: new Date(),
+        createdAt: new Date()
       });
-
-      console.log("✅ Symptom saved to database");
-    } catch (dbError) {
-      console.error("❌ Database error:", dbError);
+    } catch (mongoErr) {
+      console.error("MongoDB save error:", mongoErr);
+      // continue even if DB fails
     }
 
-    return new Response(
-      JSON.stringify({ status: "success", output: aiJSON }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ status: "success", output: aiJSON }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (error) {
     console.error("Gemini API Error:", error);
-
     return new Response(
-      JSON.stringify({
-        status: "error",
-        message: "No response from AI",
-        output: {
-          urgency: "medium",
-          suggestion: "Rest and drink fluids",
-          next_steps: "See a doctor if symptoms worsen"
-        }
-      }),
+      JSON.stringify({ status: "error", message: "No response from AI", output: {
+        urgency: "medium",
+        suggestion: "Rest and drink fluids",
+        next_steps: "See a doctor if symptoms worsen"
+      }}),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }

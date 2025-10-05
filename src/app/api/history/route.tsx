@@ -4,7 +4,7 @@ import clientPromise from "../../../../lib/mongodb";
 export async function GET() {
   try {
     console.log("🔍 Fetching symptom history from MongoDB...");
-    
+
     const client = await clientPromise;
     const db = client.db("symptom-checker");
     const collection = db.collection("symptoms");
@@ -12,7 +12,7 @@ export async function GET() {
     // Get all symptoms, sorted by most recent first
     const history = await collection
       .find({})
-      .sort({ timestamp: -1 })
+      .sort({ createdAt: -1 }) // sort by the actual field
       .limit(50)
       .toArray();
 
@@ -21,9 +21,9 @@ export async function GET() {
     // Convert MongoDB ObjectId to string for serialization
     const serializedHistory = history.map(item => ({
       _id: item._id.toString(),
-      symptom: item.symptom,
+      symptom: item.prompt,       // map prompt → symptom
       response: item.response,
-      timestamp: item.timestamp
+      timestamp: item.createdAt   // map createdAt → timestamp
     }));
 
     return NextResponse.json({
