@@ -1,10 +1,10 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import clientPromise from "../../../../lib/mongodb";
 
 export async function POST(req: Request) {
   try {
     const { prompt } = await req.json();
 
-    // Check API key
     if (!process.env.GEMINI_API_KEY) {
       console.error("Gemini API key missing!");
       return new Response(
@@ -21,11 +21,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // Initialize Gemini client
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); // use valid model
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    // Structured system prompt
     const systemPrompt = `
 You are a helpful health assistant.
 Respond ONLY in JSON format with this structure:
@@ -42,21 +40,17 @@ Do NOT diagnose.
 
     const fullPrompt = `${systemPrompt}\nUser: ${prompt}`;
 
-    // Call Gemini
     const result = await model.generateContent(fullPrompt);
     let responseText = result.response?.text() || "";
 
     console.log("Raw Gemini response:", responseText);
 
-    // Strip markdown backticks if present
     responseText = responseText.replace(/```json|```/g, "").trim();
 
-    // Parse AI output dynamically
     let aiJSON;
     try {
       aiJSON = JSON.parse(responseText);
     } catch {
-      // fallback if AI output is invalid
       aiJSON = {
         urgency: "medium",
         suggestion: "Rest, drink fluids, monitor symptoms.",
@@ -64,7 +58,23 @@ Do NOT diagnose.
       };
     }
 
-    // Return structured JSON to frontend
+    // Save to MongoDB
+    try {
+      const client = await clientPromise;
+      const db = client.db("symptom-checker");
+      const collection = db.collection("symptoms");
+
+      await collection.insertOne({
+        symptom: prompt,
+        response: aiJSON,
+        timestamp: new Date(),
+      });
+
+      console.log("✅ Symptom saved to database");
+    } catch (dbError) {
+      console.error("❌ Database error:", dbError);
+    }
+
     return new Response(
       JSON.stringify({ status: "success", output: aiJSON }),
       { status: 200, headers: { "Content-Type": "application/json" } }

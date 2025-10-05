@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 
 interface AIResponse {
   urgency: string;
@@ -20,7 +21,9 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   
+  const router = useRouter();
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
 
@@ -32,6 +35,7 @@ export default function Home() {
     setLoading(true);
     setResponse(null);
     setError(null);
+    setShowAuthPrompt(false);
 
     try {
       const res = await fetch("/api/symptom", {
@@ -45,6 +49,7 @@ export default function Home() {
       if (data.status === "success") {
         setResponse(data.output);
         setPrompt(actualPrompt);
+        setShowAuthPrompt(true); // Show auth prompt after response
       } else {
         setError(data.message || "No AI response available.");
       }
@@ -75,7 +80,6 @@ export default function Home() {
         const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
         await sendAudioToSTT(audioBlob);
         
-        // Stop all tracks to release microphone
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -101,7 +105,6 @@ export default function Home() {
     setLoading(true);
     
     try {
-      // Convert blob to base64
       const reader = new FileReader();
       reader.readAsDataURL(audioBlob);
       
@@ -120,8 +123,8 @@ export default function Home() {
         const sttData = await sttRes.json();
 
         if (sttData.status === "success" && sttData.text) {
-          setPrompt(sttData.text); // Display transcribed text in textarea
-          await handleSubmit(sttData.text); // Auto-submit to Gemini
+          setPrompt(sttData.text);
+          await handleSubmit(sttData.text);
         } else {
           setError("Voice recognition failed: " + (sttData.message || "Unknown error"));
           setLoading(false);
@@ -146,6 +149,18 @@ export default function Home() {
     } else {
       startRecording();
     }
+  };
+
+  /** Navigate to dashboard */
+  const handleAuthClick = () => {
+    // Store the current response in sessionStorage to access it in dashboard
+    if (response && prompt) {
+      sessionStorage.setItem('symptomData', JSON.stringify({
+        prompt,
+        response
+      }));
+    }
+    router.push('/dashboard');
   };
 
   return (
@@ -197,6 +212,23 @@ export default function Home() {
             <p>
               <strong>Next Steps:</strong> {response.next_steps}
             </p>
+          </div>
+        )}
+
+        {showAuthPrompt && response && (
+          <div className="mt-4 p-4 bg-gradient-to-r from-blue-900 to-purple-900 rounded border border-blue-700">
+            <h3 className="font-semibold mb-2 text-lg">
+              Want More Detailed Analysis? 🔒
+            </h3>
+            <p className="text-sm mb-3 text-gray-300">
+              Sign in or sign up to get comprehensive health insights, personalized recommendations, and track your symptoms over time.
+            </p>
+            <button
+              onClick={handleAuthClick}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded transition-all duration-200 transform hover:scale-105"
+            >
+              Sign In / Sign Up →
+            </button>
           </div>
         )}
 
